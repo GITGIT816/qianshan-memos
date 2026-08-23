@@ -4,11 +4,11 @@ import { useInstance } from "@/contexts/InstanceContext";
 import { WEB_CLIPPER_URL } from "@/lib/constants";
 import { useTranslate } from "@/utils/i18n";
 
-const GITHUB_COMMIT_URL_PREFIX = "https://github.com/usememos/memos/commit/";
-const GITHUB_RELEASE_URL_PREFIX = "https://github.com/usememos/memos/releases/tag/v";
+const GITHUB_COMMIT_URL_PREFIX = "https://github.com/GITGIT816/qianshan-memos/commit/";
+const GITHUB_RELEASE_URL_PREFIX = "https://github.com/GITGIT816/qianshan-memos/releases/tag/v";
 
-const DEFAULT_TITLE = "Memos";
-const DEFAULT_TAGLINE = "Capture first. Keep it yours.";
+const DEFAULT_TITLE = "千山备忘";
+const DEFAULT_TAGLINE = "先记下来，再想明白。";
 const DEFAULT_LOGO = "/logo.webp";
 
 const isCommitSha = (commit: string) => /^[0-9a-f]{7,40}$/i.test(commit);
@@ -54,7 +54,7 @@ const About = () => {
   if (shortCommit) {
     buildRows.push({ label: t("about.commit"), value: <Chip href={commitUrl}>{shortCommit}</Chip> });
   }
-  buildRows.push({ label: t("about.license"), value: <Chip href="https://github.com/usememos/memos/blob/main/LICENSE">MIT</Chip> });
+  buildRows.push({ label: t("about.license"), value: <Chip href="https://github.com/GITGIT816/qianshan-memos/blob/main/LICENSE">MIT</Chip> });
   if (isCustomBranded) {
     buildRows.push({
       label: t("about.distribution"),
@@ -63,13 +63,13 @@ const About = () => {
   }
 
   const projectLinks = [
-    { label: t("about.official-website"), note: t("about.official-website-note"), href: "https://usememos.com/" },
+    { label: t("about.official-website"), note: t("about.official-website-note"), href: "https://qianshan.app/memos/" },
     { label: t("about.documents"), note: t("about.documents-note"), href: "https://usememos.com/docs" },
     { label: t("about.api-docs"), note: t("about.api-docs-note"), href: "https://usememos.com/docs/api" },
     {
       label: t("about.github-repository"),
       note: t("about.github-repository-note"),
-      href: "https://github.com/usememos/memos",
+      href: "https://github.com/GITGIT816/qianshan-memos",
     },
     { label: t("about.web-clipper"), note: t("about.web-clipper-platforms"), href: WEB_CLIPPER_URL, icon: ScissorsIcon },
   ];

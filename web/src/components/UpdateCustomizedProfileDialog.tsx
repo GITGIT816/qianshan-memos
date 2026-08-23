@@ -59,7 +59,7 @@ function UpdateCustomizedProfileDialog({ open, onOpenChange, onSuccess }: Props)
 
   const handleRestoreButtonClick = () => {
     setPartialState({
-      title: "Memos",
+      title: "千山备忘",
       logoUrl: "/logo.webp",
       description: "",
     });

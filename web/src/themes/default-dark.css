@@ -10,8 +10,8 @@
   --popover: oklch(0.32 0.01 255);
   --popover-foreground: oklch(0.92 0.006 255);
 
-  /* Primary - readable blue for selected items, links, and focused controls */
-  --primary: oklch(0.66 0.11 250);
+  /* Primary - brand seal red for selected items, links, and focused controls */
+  --primary: oklch(0.5765 0.1509 32.37);
   --primary-foreground: oklch(0.24 0.008 255);
 
   /* Secondary - elevated surface for secondary buttons */
@@ -39,7 +39,7 @@
   /* Borders - --border for layout dividers, --input for form field borders */
   --border: oklch(0.38 0.01 255);
   --input: oklch(0.42 0.011 255);
-  --ring: oklch(0.58 0.095 250);
+  --ring: oklch(0.5765 0.1509 32.37);
 
   /* Sidebar - anchored but no longer near-black */
   --sidebar: oklch(0.21 0.009 255);

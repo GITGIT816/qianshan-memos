@@ -1,3 +1,7 @@
+> 🏔️ **千山备忘 / Qianshan Memos** — 这是 [usememos/memos](https://github.com/usememos/memos)（MIT 协议）的换皮定制版，千山 Studio 出品，仅替换了品牌名称/图标/主题色，功能与上游保持一致。镜像发布在私有仓库 `registry.qianshan.app/qianshan-memos`，线上实例见 [qianshan.app/memos](https://qianshan.app/memos/)。下方是原始上游 README，作为功能与部署文档保留。
+
+---
+
 > ✨ Featured Sponsor: [CodeRabbit](https://coderabbit.link/usememos) — Cut code review time & bugs in half, instantly.
 
 # Memos

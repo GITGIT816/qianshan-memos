@@ -1,7 +1,7 @@
 {
-  "name": "Memos",
-  "short_name": "Memos",
-  "description": "An open-source, self-hosted note-taking tool. Capture thoughts instantly. Own them completely.",
+  "name": "千山备忘",
+  "short_name": "千山备忘",
+  "description": "随手记下的碎片笔记与灵感，标签归类，Markdown 支持，千山 Studio 出品的自托管备忘工具。",
   "icons": [
     { "src": "/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png" }
@@ -9,6 +9,6 @@
   "display": "standalone",
   "scope": "/",
   "start_url": "/",
-  "theme_color": "#faf9f5",
-  "background_color": "#faf9f5"
+  "theme_color": "#EDEAE2",
+  "background_color": "#EDEAE2"
 }
