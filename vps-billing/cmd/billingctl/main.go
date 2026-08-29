@@ -10,8 +10,11 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/mdp/qrterminal/v3"
 
 	"vps-billing/internal/billing"
 	"vps-billing/internal/model"
@@ -29,6 +32,17 @@ type globals struct {
 	protocol           string
 	flow               string
 	enforceDeviceLimit bool
+
+	// Share-link fields, only needed by `sub create` and `sub link`. Left
+	// zero-valued (host="") they simply skip link/QR generation.
+	host        string
+	port        int
+	security    string
+	sni         string
+	publicKey   string
+	shortID     string
+	fingerprint string
+	network     string
 }
 
 func envOr(key, def string) string {
@@ -47,7 +61,43 @@ func newGlobals(fs *flag.FlagSet) *globals {
 	fs.StringVar(&g.flow, "flow", envOr("BILLING_FLOW", ""), "vless flow, e.g. xtls-rprx-vision (leave empty unless required)")
 	enforceDefault := envOr("BILLING_ENFORCE_DEVICE_LIMIT", "false") == "true"
 	fs.BoolVar(&g.enforceDeviceLimit, "enforce-device-limit", enforceDefault, "suspend a subscription that exceeds its plan's device limit")
+
+	fs.StringVar(&g.host, "host", envOr("BILLING_HOST", ""), "domain/IP clients connect to; set to also print a share link + QR code on sub create/link")
+	portDefault, _ := strconv.Atoi(envOr("BILLING_PORT", "443"))
+	fs.IntVar(&g.port, "port", portDefault, "port clients connect to")
+	fs.StringVar(&g.security, "security", envOr("BILLING_SECURITY", "reality"), "reality, tls, or none")
+	fs.StringVar(&g.sni, "sni", envOr("BILLING_SNI", ""), "reality/tls server name")
+	fs.StringVar(&g.publicKey, "pbk", envOr("BILLING_PUBLIC_KEY", ""), "reality public key (required when security=reality)")
+	fs.StringVar(&g.shortID, "sid", envOr("BILLING_SHORT_ID", ""), "reality short id")
+	fs.StringVar(&g.fingerprint, "fp", envOr("BILLING_FINGERPRINT", "chrome"), "client TLS fingerprint")
+	fs.StringVar(&g.network, "network", envOr("BILLING_NETWORK", "tcp"), "transport: tcp, ws, grpc, ...")
 	return g
+}
+
+func (g *globals) linkConfig() billing.LinkConfig {
+	return billing.LinkConfig{
+		Host: g.host, Port: g.port, Security: g.security, SNI: g.sni,
+		PublicKey: g.publicKey, ShortID: g.shortID, Fingerprint: g.fingerprint,
+		Network: g.network, Flow: g.flow,
+	}
+}
+
+// printShareLink builds and prints sub's vless:// link plus a terminal QR
+// code, unless -host/BILLING_HOST is unset (in which case it prints nothing
+// beyond a one-line hint — link generation is optional).
+func printShareLink(g *globals, sub model.Subscription) {
+	if g.host == "" {
+		fmt.Println("  (set -host, or BILLING_HOST in the environment, to also get a share link + QR code here)")
+		return
+	}
+	link, err := billing.BuildVLESSLink(g.linkConfig(), sub)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "  could not build share link:", err)
+		return
+	}
+	fmt.Println("  link:  " + link)
+	fmt.Println()
+	qrterminal.GenerateHalfBlock(link, qrterminal.L, os.Stdout)
 }
 
 func (g *globals) open() (*store.Store, *billing.Service, error) {
@@ -109,11 +159,17 @@ Usage:
   billingctl sub renew -id ID
   billingctl sub suspend -id ID [-reason R]
   billingctl sub resume -id ID
+  billingctl sub link -id ID                      reprint a subscription's share link + QR code
   billingctl sub list
   billingctl sync [-once] [-interval 5m]          reconcile usage/expiry against xray; runs forever unless -once
 
 Global flags (any subcommand): -db -xray-bin -xray-api -protocol -flow -enforce-device-limit
 Same settings can be set via env: BILLING_DB, XRAY_BIN, XRAY_API, BILLING_PROTOCOL, BILLING_FLOW, BILLING_ENFORCE_DEVICE_LIMIT
+
+Share-link flags (sub create / sub link only) — set -host to enable link + QR
+code output: -host -port -security -sni -pbk -sid -fp -network
+Env: BILLING_HOST, BILLING_PORT, BILLING_SECURITY, BILLING_SNI,
+BILLING_PUBLIC_KEY, BILLING_SHORT_ID, BILLING_FINGERPRINT, BILLING_NETWORK
 `)
 }
 
@@ -280,7 +336,7 @@ func cmdCustomer(args []string) error {
 
 func cmdSub(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: billingctl sub <create|renew|suspend|resume|list> ...")
+		return fmt.Errorf("usage: billingctl sub <create|renew|suspend|resume|link|list> ...")
 	}
 	switch args[0] {
 	case "create":
@@ -310,7 +366,7 @@ func cmdSub(args []string) error {
 		}
 		fmt.Printf("created subscription id=%d\n  email:  %s\n  uuid:   %s\n  expires: %s\n",
 			sub.ID, sub.Email, sub.UUID, sub.ExpiresAt.Format(time.RFC3339))
-		fmt.Println("  (build the client share link from this uuid/email plus your inbound's host/port/TLS settings)")
+		printShareLink(g, sub)
 		return nil
 
 	case "renew":
@@ -375,6 +431,29 @@ func cmdSub(args []string) error {
 		fmt.Printf("resumed subscription %d\n", id)
 		return nil
 
+	case "link":
+		fs := flag.NewFlagSet("sub link", flag.ExitOnError)
+		g := newGlobals(fs)
+		id := fs.Int64("id", 0, "subscription id")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *id == 0 {
+			return fmt.Errorf("-id is required")
+		}
+		st, _, err := g.open()
+		if err != nil {
+			return err
+		}
+		defer st.Close()
+
+		sub, err := st.GetSubscription(*id)
+		if err != nil {
+			return err
+		}
+		printShareLink(g, sub)
+		return nil
+
 	case "list":
 		fs := flag.NewFlagSet("sub list", flag.ExitOnError)
 		g := newGlobals(fs)
@@ -404,7 +483,7 @@ func cmdSub(args []string) error {
 		return nil
 
 	default:
-		return fmt.Errorf("usage: billingctl sub <create|renew|suspend|resume|list> ...")
+		return fmt.Errorf("usage: billingctl sub <create|renew|suspend|resume|link|list> ...")
 	}
 }
 

@@ -52,16 +52,23 @@ sudo -u vps-billing billingctl seed-plans   # 按截图里的三档建 轻量15�
 sudo -u vps-billing billingctl plan list
 
 sudo -u vps-billing billingctl customer add -name "老王" -contact "微信:xxx"
-sudo -u vps-billing billingctl sub create -customer 1 -plan 2 -email laowang@yournode -tag vless-in
+sudo -u vps-billing billingctl sub create -customer 1 -plan 2 -email laowang@yournode -tag vless-in \
+  -host 你的域名或IP -pbk <第1步生成的公钥> -sni www.example.com -sid ""
 ```
 
-`sub create` 会打印出这个订阅的 `uuid` 和到期时间。把它拼成客户端能识别的订阅链接,例如 VLESS + Reality:
+带上 `-host`(和视情况需要的 `-pbk`/`-sni`/`-sid`/`-fp`)之后,`sub create` 会直接打印出完整的 `vless://` 分享链接,并在终端画出对应的二维码——截图发给对方,或者对方直接拿手机相机/客户端扫终端里那个二维码即可导入,不用手工拼链接。`<公钥>` 是第1步用 `xray x25519` 生成密钥对时留存的那个(私钥填在 config.json 里,公钥给客户端)。
 
-```
-vless://<uuid>@<你的域名或IP>:443?security=reality&sni=<serverNames>&fp=chrome&pbk=<公钥>&sid=<shortId>&type=tcp#<备注名>
+这几个参数改一次就长期不变(除非换服务器/换端口/重新生成 reality 密钥对),写进 `/etc/vps-billing/billing.env` 的 `BILLING_HOST`/`BILLING_PUBLIC_KEY`/`BILLING_SNI`/`BILLING_SHORT_ID` 里之后,以后 `sub create`/`sub link` 就不用每次都传这些参数了。
+
+如果客户把链接弄丢了,不用重新开通,直接:
+
+```bash
+billingctl sub link -id 3
 ```
 
-`<公钥>` 是你在第1步用 `xray x25519` 生成密钥对时留存的公钥(私钥填在 config.json 里,公钥给客户端)。这部分和套餐管理无关,是标准的 VLESS Reality 客户端配置,任意支持 Reality 的客户端(v2rayN、NekoBox、Shadowrocket 等)都能识别这个链接格式。
+重新打印一遍链接和二维码。
+
+任意支持 Reality 的客户端都能识别这个 `vless://` 链接,包括 iOS 上的 **小火箭(Shadowrocket)**——较新版本可以直接扫二维码或粘贴链接导入,老版本可能不支持 Reality,建议先在 App Store 更新到最新版。
 
 ## 4. 让 sync 常驻
 

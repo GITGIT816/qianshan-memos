@@ -22,7 +22,10 @@ go build -o billingctl ./cmd/billingctl
 
 # 建一个客户,开一个订阅(需要 Xray 已按 configs/xray.config.example.json 打开API)
 ./billingctl customer add -db ./billing.db -name "Alice"
-./billingctl sub create -db ./billing.db -customer 1 -plan 2 -email alice@yournode -tag vless-in
+./billingctl sub create -db ./billing.db -customer 1 -plan 2 -email alice@yournode -tag vless-in \
+  -host your.domain.com -pbk <reality公钥> -sni www.example.com
+# 上面加了 -host 会直接打印 vless:// 链接 + 终端二维码,扫码就能导入(小火箭等客户端都支持)
+# 链接弄丢了不用重开,billingctl sub link -id 1 随时能重新打印
 
 # 收到续费款之后
 ./billingctl sub renew -db ./billing.db -id 1
@@ -31,7 +34,7 @@ go build -o billingctl ./cmd/billingctl
 ./billingctl sync -db ./billing.db -interval 5m
 ```
 
-完整部署步骤(改 Xray 配置、装 systemd 服务、怎么把 uuid 拼成客户端订阅链接)见 [`docs/DEPLOY.md`](docs/DEPLOY.md)。
+完整部署步骤(改 Xray 配置、装 systemd 服务、share-link 参数怎么配)见 [`docs/DEPLOY.md`](docs/DEPLOY.md)。
 
 ## 目录结构
 
