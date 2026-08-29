@@ -1,0 +1,21 @@
+[Unit]
+Description=vps-billing sync loop (reconciles Xray users/quotas against billing.db)
+After=network.target xray.service
+Wants=xray.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/vps-billing/billing.env
+ExecStart=/usr/local/bin/billingctl sync -interval 5m
+Restart=on-failure
+RestartSec=10s
+User=vps-billing
+Group=vps-billing
+# billingctl only needs to run `xray api ...` as a client and read/write its
+# own sqlite file — it does not need root.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/vps-billing
+
+[Install]
+WantedBy=multi-user.target

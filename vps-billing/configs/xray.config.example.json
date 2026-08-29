@@ -1,0 +1,70 @@
+{
+  "_comment": "片段示例：把下面这几块合并进你VPS上已有的 Xray config.json,不要整个替换掉现有配置。inbounds 里只列出了 api-in(新增)和一个示例 vless-in;你现有的代理 inbound 保留不动,只要给它加上 tag,并把 tag 名对应写进 billingctl sub create -tag 参数里即可。",
+
+  "api": {
+    "tag": "api",
+    "services": ["HandlerService", "StatsService", "LoggerService"]
+  },
+
+  "stats": {},
+
+  "policy": {
+    "levels": {
+      "0": {
+        "statsUserUplink": true,
+        "statsUserDownlink": true
+      }
+    },
+    "system": {
+      "statsInboundUplink": true,
+      "statsInboundDownlink": true
+    }
+  },
+
+  "inbounds": [
+    {
+      "_comment": "billingctl 查询流量/用户列表要连的本地 API 端口,只监听127.0.0.1,不要对公网开放",
+      "listen": "127.0.0.1",
+      "port": 10085,
+      "protocol": "dokodemo-door",
+      "settings": { "address": "127.0.0.1" },
+      "tag": "api-in"
+    },
+    {
+      "_comment": "示例:你现有的代理 inbound,保留其真实端口/协议/TLS设置,只需要确保有 tag,且 clients 一开始留空数组——用户由 billingctl 在运行时通过API增删,不要手工往这里写死用户",
+      "tag": "vless-in",
+      "port": 443,
+      "protocol": "vless",
+      "settings": {
+        "clients": [],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "_comment": "用 `xray x25519` 生成一对公私钥,私钥填这里、公钥给客户端用,dest/serverNames 换成你自己的搭桥站点",
+          "dest": "www.example.com:443",
+          "serverNames": ["www.example.com"],
+          "privateKey": "REPLACE_WITH_YOUR_PRIVATE_KEY",
+          "shortIds": [""]
+        }
+      }
+    }
+  ],
+
+  "outbounds": [
+    { "protocol": "freedom", "tag": "direct" }
+  ],
+
+  "routing": {
+    "rules": [
+      {
+        "_comment": "把打到 api-in 的流量交给上面声明的 api 处理,这条规则必须加,否则 API 端口不会真正生效",
+        "type": "field",
+        "inboundTag": ["api-in"],
+        "outboundTag": "api"
+      }
+    ]
+  }
+}
