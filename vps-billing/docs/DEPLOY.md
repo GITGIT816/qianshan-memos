@@ -2,20 +2,37 @@
 
 前提:VPS上已经有一个在跑的 **Xray-core**(如果你不确定,执行 `xray version`;如果是 sing-box/v2ray,这套工具目前不适用,见 README 的"它是什么、不是什么")。
 
-## 1. 给 Xray 打开管理 API
+这些命令都要在你的VPS上执行——Claude 这边没有你VPS的登录权限,没法替你跑。
 
-编辑你现有的 `config.json`(通常在 `/usr/local/etc/xray/config.json`),把 [`configs/xray.config.example.json`](../configs/xray.config.example.json) 里的 `api`、`stats`、`policy`、`routing.rules` 这几块**合并**进去——不要整个文件替换,你现有的 inbound/outbound 保留不动,只需要:
-
-1. 给你现有那个代理用的 inbound 加一个 `tag`(比如 `"vless-in"`),并把它的 `settings.clients` 清空成 `[]`——用户以后交给本工具管理,不要再手工往里加。
-2. 新增一个只监听 `127.0.0.1:10085` 的 `dokodemo-door` inbound,`tag` 设为 `api-in`。
-3. 加 `api` / `stats` / `policy` 块。
-4. 在 `routing.rules` 里加一条把 `api-in` 的流量交给 `api` 处理的规则。
-
-改完之后校验配置再重载,不要盲目重启:
+## 0. 拿到代码、编译、装成系统服务
 
 ```bash
-xray -test -config /usr/local/etc/xray/config.json
-systemctl reload xray   # 或 restart,取决于你的 Xray 是否支持 reload
+git clone https://github.com/GITGIT816/qianshan-memos.git
+cd qianshan-memos/vps-billing
+sudo ./scripts/install.sh
+```
+
+这一步脚本会自动:编译 `billingctl`、装到 `/usr/local/bin`、建专用系统用户 `vps-billing`、建 `/var/lib/vps-billing`(数据库目录)和 `/etc/vps-billing/billing.env`(配置)、装好 systemd 服务文件(先不启动)。跑完会打印接下来要做的事,和下面第1~4步是对应的。
+
+## 1. 给 Xray 打开管理 API
+
+不用手改 JSON,用工具自动合并:
+
+```bash
+billingctl xray-merge-config -in /usr/local/etc/xray/config.json
+```
+
+会在旁边生成一份 `config.json.merged.json`,自动加好 `api`/`stats`/`policy`/`routing` 这几块,**不会动你现有的 inbound/outbound**。跑完看它打印出来的:
+
+- "inbounds found" 列表——确认你现有代理那个 inbound 有 tag(没有的话工具会在 "⚠ needs your attention" 里提醒你,需要你自己去 merged 文件里给它加一个,比如 `"vless-in"`,这个 tag 名字之后要传给 `sub create -tag`)。
+- 如果提示 "⚠ heads up: inbound xxx already has N client(s)"——说明你现在这个 inbound 底下已经手工加了用户,这些人以后不会被 billingctl 追踪流量/到期,建议清空 `settings.clients` 后用 `sub create` 帮他们重新开一份。
+
+确认没问题后:
+
+```bash
+xray -test -config /usr/local/etc/xray/config.json.merged.json   # 先校验
+sudo cp /usr/local/etc/xray/config.json.merged.json /usr/local/etc/xray/config.json
+sudo systemctl reload xray   # 或 restart,取决于你的 Xray 是否支持 reload
 ```
 
 验证 API 已经通了:
@@ -25,45 +42,37 @@ xray api statsquery --server=127.0.0.1:10085 -pattern ""
 # 能返回 JSON(哪怕是空的 {"stat":[]})就说明API通了;报错说明上面哪步没配对
 ```
 
-## 2. 编译并安装 billingctl
+## 2. 编辑配置
 
 ```bash
-cd vps-billing
-go build -o billingctl ./cmd/billingctl
-sudo install -o root -g root -m 755 billingctl /usr/local/bin/billingctl
+sudo nano /etc/vps-billing/billing.env
 ```
 
-建运行目录和专用用户(不需要 root 权限跑):
+至少确认/填好:`BILLING_DB`(默认已经指向 `/var/lib/vps-billing/billing.db`,一般不用改)、`XRAY_BIN`、`BILLING_HOST`(你的域名或IP)、以及用 Reality 的话 `BILLING_PUBLIC_KEY`/`BILLING_SNI`/`BILLING_SHORT_ID`(公钥是 `xray x25519` 生成密钥对时留存的那个,私钥填在 Xray config.json 里,不要填进这个 env 文件)。
 
-```bash
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin vps-billing
-sudo mkdir -p /var/lib/vps-billing /etc/vps-billing
-sudo chown vps-billing:vps-billing /var/lib/vps-billing
-sudo cp configs/billing.env.example /etc/vps-billing/billing.env
-sudo chmod 600 /etc/vps-billing/billing.env
-```
-
-按需编辑 `/etc/vps-billing/billing.env`(数据库路径、xray 二进制路径、协议等)。
+之后为了方便,下面命令里为了不依赖这个 env 文件(`sudo -u` 不会自动加载它),统一显式传 `-db /var/lib/vps-billing/billing.db`;实际后台常驻的 systemd 服务会通过 `EnvironmentFile` 自动读到这些值。
 
 ## 3. 建套餐、建客户、开订阅
 
 ```bash
-sudo -u vps-billing billingctl seed-plans   # 按截图里的三档建 轻量15元/标准25元/重度50元
-sudo -u vps-billing billingctl plan list
+sudo -u vps-billing billingctl seed-plans -db /var/lib/vps-billing/billing.db   # 按截图里的三档建 轻量15元/标准25元/重度50元
+sudo -u vps-billing billingctl plan list -db /var/lib/vps-billing/billing.db
 
-sudo -u vps-billing billingctl customer add -name "老王" -contact "微信:xxx"
-sudo -u vps-billing billingctl sub create -customer 1 -plan 2 -email laowang@yournode -tag vless-in \
+sudo -u vps-billing billingctl customer add -db /var/lib/vps-billing/billing.db -name "老王" -contact "微信:xxx"
+sudo -u vps-billing billingctl sub create -db /var/lib/vps-billing/billing.db \
+  -customer 1 -plan 2 -email laowang@yournode -tag vless-in \
   -host 你的域名或IP -pbk <第1步生成的公钥> -sni www.example.com -sid ""
 ```
 
-带上 `-host`(和视情况需要的 `-pbk`/`-sni`/`-sid`/`-fp`)之后,`sub create` 会直接打印出完整的 `vless://` 分享链接,并在终端画出对应的二维码——截图发给对方,或者对方直接拿手机相机/客户端扫终端里那个二维码即可导入,不用手工拼链接。`<公钥>` 是第1步用 `xray x25519` 生成密钥对时留存的那个(私钥填在 config.json 里,公钥给客户端)。
+带上 `-host`(和视情况需要的 `-pbk`/`-sni`/`-sid`/`-fp`)之后,`sub create` 会直接打印出完整的 `vless://` 分享链接,并在终端画出对应的二维码——截图发给对方,或者对方直接拿手机相机/客户端扫终端里那个二维码即可导入,不用手工拼链接。
 
-这几个参数改一次就长期不变(除非换服务器/换端口/重新生成 reality 密钥对),写进 `/etc/vps-billing/billing.env` 的 `BILLING_HOST`/`BILLING_PUBLIC_KEY`/`BILLING_SNI`/`BILLING_SHORT_ID` 里之后,以后 `sub create`/`sub link` 就不用每次都传这些参数了。
+如果第2步已经把 `BILLING_HOST`/`BILLING_PUBLIC_KEY` 等写进了 `billing.env`,可以省掉这些参数,但只有通过 systemd 或手动 `source /etc/vps-billing/billing.env` 之后才会生效——直接 `sudo -u vps-billing billingctl ...` 不会读这个文件。
 
 如果客户把链接弄丢了,不用重新开通,直接:
 
 ```bash
-billingctl sub link -id 3
+sudo -u vps-billing billingctl sub link -db /var/lib/vps-billing/billing.db -id 3 \
+  -host 你的域名或IP -pbk <公钥> -sni www.example.com
 ```
 
 重新打印一遍链接和二维码。
@@ -73,22 +82,20 @@ billingctl sub link -id 3
 ## 4. 让 sync 常驻
 
 ```bash
-sudo cp configs/systemd/vps-billing-sync.service /etc/systemd/system/
-sudo systemctl daemon-reload
 sudo systemctl enable --now vps-billing-sync.service
 sudo systemctl status vps-billing-sync.service
 journalctl -u vps-billing-sync.service -f
 ```
 
-这个服务每 5 分钟做一次:拉每个在用订阅的流量增量累加进数据库、检查是否过期或超流量并停用、把 Xray 当前用户列表和数据库对齐(处理 Xray 重启后 API 加的用户丢失的问题)。
+(`vps-billing-sync.service` 是第0步 `install.sh` 已经装好的,这里只是启用。)这个服务每 5 分钟做一次:拉每个在用订阅的流量增量累加进数据库、检查是否过期或超流量并停用、把 Xray 当前用户列表和数据库对齐(处理 Xray 重启后 API 加的用户丢失的问题)。
 
 ## 5. 日常运维
 
 ```bash
-billingctl sub list -db /var/lib/vps-billing/billing.db      # 看所有人的用量/到期/在线设备数
-billingctl sub renew -id 3                                    # 收到续费款后手动续期、清零用量
-billingctl sub suspend -id 3 -reason "手动停用"                # 立即停用
-billingctl sub resume -id 3                                    # 恢复(不改到期时间/用量)
+sudo -u vps-billing billingctl sub list -db /var/lib/vps-billing/billing.db      # 看所有人的用量/到期/在线设备数
+sudo -u vps-billing billingctl sub renew -db /var/lib/vps-billing/billing.db -id 3     # 收到续费款后手动续期、清零用量
+sudo -u vps-billing billingctl sub suspend -db /var/lib/vps-billing/billing.db -id 3 -reason "手动停用"  # 立即停用
+sudo -u vps-billing billingctl sub resume -db /var/lib/vps-billing/billing.db -id 3    # 恢复(不改到期时间/用量)
 ```
 
 ## 设备数限制的真实能力

@@ -13,6 +13,22 @@
 
 ## 快速上手
 
+一条命令编译+装成系统服务(建用户、建目录、装 systemd 单元):
+
+```bash
+sudo ./scripts/install.sh
+```
+
+改 Xray 配置这步也不用手改 JSON,用工具自动合并 api/stats/policy/routing 这几块:
+
+```bash
+billingctl xray-merge-config -in /usr/local/etc/xray/config.json
+```
+
+跑完看它打印的 inbounds 列表和警告,确认无误后校验、替换、reload xray。详见 [`docs/DEPLOY.md`](docs/DEPLOY.md)。
+
+或者跳过安装脚本自己手动来:
+
 ```bash
 cd vps-billing
 go build -o billingctl ./cmd/billingctl
@@ -39,12 +55,14 @@ go build -o billingctl ./cmd/billingctl
 ## 目录结构
 
 ```
-cmd/billingctl/        CLI 入口
+cmd/billingctl/        CLI 入口(含 xray-merge-config 子命令)
 internal/model/         Plan / Customer / Subscription 领域模型
 internal/store/         SQLite 持久化
 internal/xrayctl/       封装 `xray api ...` 命令行调用
-internal/billing/       套餐开通/续费/停用 + 定时对账的业务逻辑
+internal/xrayconf/      非破坏性合并 api/stats/policy/routing 进已有 Xray 配置
+internal/billing/       套餐开通/续费/停用 + 分享链接生成 + 定时对账的业务逻辑
 configs/                Xray 配置片段示例、systemd 单元、环境变量样例
+scripts/install.sh      一条命令编译+装成系统服务
 docs/DEPLOY.md           从零部署到日常运维的完整步骤
 ```
 

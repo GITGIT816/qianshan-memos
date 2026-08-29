@@ -132,6 +132,8 @@ func main() {
 		err = cmdSub(os.Args[2:])
 	case "sync":
 		err = cmdSync(os.Args[2:])
+	case "xray-merge-config":
+		err = cmdXrayMergeConfig(os.Args[2:])
 	case "help", "-h", "--help":
 		usage()
 		return
@@ -150,6 +152,9 @@ func usage() {
 	fmt.Fprint(os.Stderr, `billingctl - proxy plan/subscription manager backed by Xray-core
 
 Usage:
+  billingctl xray-merge-config -in /path/to/config.json [-write] [-out FILE]
+                                                   merge the api/stats/policy/routing blocks
+                                                   billingctl needs into an existing Xray config
   billingctl seed-plans                          seed the three default plans (轻量/标准/重度)
   billingctl plan add -name NAME -price-cny X -traffic-gb G -days D -devices N
   billingctl plan list
